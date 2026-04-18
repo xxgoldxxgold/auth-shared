@@ -1,0 +1,18 @@
+{
+  "name": "@xxgoldxxgold/auth-shared-reactnative",
+  "version": "2.0.0",
+  "description": "共通認証UI (Expo/React Native)",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "peerDependencies": {
+    "@supabase/supabase-js": ">=2.0.0",
+    "react": ">=18.0.0",
+    "react-native": ">=0.70.0",
+    "expo-auth-session": ">=5.0.0",
+    "expo-web-browser": ">=12.0.0"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ]
+}
