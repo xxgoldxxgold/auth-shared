@@ -29,7 +29,7 @@ export function AuthProvider({
   children: ReactNode
   config: AuthConfig
 }) {
-  const { supabase, redirectAfterLogout = '/', autoCreateProfile = true, onLogin, onLogout } = config
+  const { supabase, redirectAfterLogout = '/', autoCreateProfile = false, onLogin, onLogout } = config
   const [user, setUser] = useState<User | null>(null)
   const [displayName, setDisplayName] = useState('')
   const [avatarUrl, setAvatarUrl] = useState('')

@@ -36,7 +36,7 @@ Supabase Dashboard → Auth → URL Configuration → Redirect URLs に、以下
 
 - `supabase`: 必須。`createClient()` で作った SupabaseClient
 - `redirectAfterLogout`: 省略可。ログアウト後のリダイレクト先 URL (デフォルト: `'/'`)
-- `autoCreateProfile`: 省略可。`shared_profiles` を自動作成するか (デフォルト: `true`、DB トリガー併用時は `false` 推奨)
+- `autoCreateProfile`: 省略可。`shared_profiles` を自動作成するか (デフォルト: `false`。`supabase/triggers.sql` 適用前提)
 - `signupSource`: 省略可。サービス名。`shared_profiles.signup_source` に記録
 - `onLogin`, `onLogout`: 省略可。サービス固有の後処理フック
 
@@ -61,6 +61,7 @@ Supabase Dashboard → Auth → URL Configuration → Redirect URLs に、以下
 - 名前空間を `@xxgoldxxgold/auth-shared` から `@xxgoldxxgold/auth-shared-web` へ変更 (モノレポ構造化に伴う)
 - 未使用だった `signInWithOAuthOverride` と `onNavigateAfterLogout` を AuthConfig から削除
 - `signupSource` が `ensureProfile` の insert に反映されるよう修正
+- `autoCreateProfile` のデフォルトを `true` → `false` に変更 (DB トリガー適用を前提とする設計に統一)
 
 ## 同時リリース
 
