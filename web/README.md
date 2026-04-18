@@ -36,6 +36,7 @@ Supabase Dashboard → Auth → URL Configuration → Redirect URLs に、以下
 
 - `supabase`: 必須。`createClient()` で作った SupabaseClient
 - `redirectAfterLogout`: 省略可。ログアウト後のリダイレクト先 URL (デフォルト: `'/'`)
+- `oauthRedirectUrl`: 省略可。OAuth / メール確認 / パスワードリセットの戻り先 URL (デフォルト: `${window.location.origin}/auth/callback`)。consumer 側のコールバックページの URL が `/auth/callback` 以外の場合はここで指定
 - `autoCreateProfile`: 省略可。`shared_profiles` を自動作成するか (デフォルト: `false`。`supabase/triggers.sql` 適用前提)
 - `signupSource`: 省略可。サービス名。`shared_profiles.signup_source` に記録
 - `onLogin`, `onLogout`: 省略可。サービス固有の後処理フック

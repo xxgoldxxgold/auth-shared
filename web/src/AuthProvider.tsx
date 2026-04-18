@@ -29,7 +29,8 @@ export function AuthProvider({
   children: ReactNode
   config: AuthConfig
 }) {
-  const { supabase, redirectAfterLogout = '/', autoCreateProfile = false, onLogin, onLogout } = config
+  const { supabase, redirectAfterLogout = '/', oauthRedirectUrl, autoCreateProfile = false, onLogin, onLogout } = config
+  const resolveRedirectUrl = () => oauthRedirectUrl ?? window.location.origin + '/auth/callback'
   const [user, setUser] = useState<User | null>(null)
   const [displayName, setDisplayName] = useState('')
   const [avatarUrl, setAvatarUrl] = useState('')
@@ -100,16 +101,16 @@ export function AuthProvider({
   const signInWithGoogle = useCallback(async () => {
     await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.origin + '/auth/callback' },
+      options: { redirectTo: resolveRedirectUrl() },
     })
-  }, [supabase])
+  }, [supabase, oauthRedirectUrl])
 
   const signInWithApple = useCallback(async () => {
     await supabase.auth.signInWithOAuth({
       provider: 'apple',
-      options: { redirectTo: window.location.origin + '/auth/callback' },
+      options: { redirectTo: resolveRedirectUrl() },
     })
-  }, [supabase])
+  }, [supabase, oauthRedirectUrl])
 
   const signInWithEmail = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -123,20 +124,20 @@ export function AuthProvider({
       password,
       options: {
         data: { display_name: name || '', ...(config.signupSource ? { signup_source: config.signupSource } : {}) },
-        emailRedirectTo: window.location.origin + '/auth/callback',
+        emailRedirectTo: resolveRedirectUrl(),
       },
     })
     if (error) return { error: error.message }
     return {}
-  }, [supabase, config.signupSource])
+  }, [supabase, config.signupSource, oauthRedirectUrl])
 
   const resetPassword = useCallback(async (email: string) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + '/auth/callback',
+      redirectTo: resolveRedirectUrl(),
     })
     if (error) return { error: error.message }
     return {}
-  }, [supabase])
+  }, [supabase, oauthRedirectUrl])
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut()

@@ -4,6 +4,8 @@ export interface AuthConfig {
   supabase: SupabaseClient
   /** ログアウト後のリダイレクト先 URL (デフォルト: '/') */
   redirectAfterLogout?: string
+  /** OAuth / メール確認 / パスワードリセットの戻り先 URL (デフォルト: `${window.location.origin}/auth/callback`) */
+  oauthRedirectUrl?: string
   /** shared_profiles テーブルに自動登録するか (デフォルト: false、DB トリガーでの作成が前提) */
   autoCreateProfile?: boolean
   /** signup_source 識別子 (サービス名) */
