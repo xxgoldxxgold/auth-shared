@@ -96,17 +96,33 @@ class AuthManager extends ChangeNotifier {
   }
 
   Future<void> signInWithGoogle() async {
-    await _supabase.auth.signInWithOAuth(
-      OAuthProvider.google,
-      redirectTo: _redirectUrl,
-    );
+    try {
+      final launched = await _supabase.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: _redirectUrl,
+      );
+      if (!launched) {
+        throw AuthException('Failed to launch Google OAuth browser');
+      }
+    } catch (e, st) {
+      debugPrint('[auth-shared] signInWithGoogle error: $e\n$st');
+      rethrow;
+    }
   }
 
   Future<void> signInWithApple() async {
-    await _supabase.auth.signInWithOAuth(
-      OAuthProvider.apple,
-      redirectTo: _redirectUrl,
-    );
+    try {
+      final launched = await _supabase.auth.signInWithOAuth(
+        OAuthProvider.apple,
+        redirectTo: _redirectUrl,
+      );
+      if (!launched) {
+        throw AuthException('Failed to launch Apple OAuth browser');
+      }
+    } catch (e, st) {
+      debugPrint('[auth-shared] signInWithApple error: $e\n$st');
+      rethrow;
+    }
   }
 
   Future<void> signOut() async {

@@ -107,21 +107,32 @@ export function AuthProvider({
       provider,
       options: { redirectTo, skipBrowserRedirect: true },
     })
-    if (error || !data.url) throw new Error(error?.message || 'OAuth failed')
+    if (error || !data.url) {
+      throw new Error(error?.message || `OAuth initiation failed for ${provider}`)
+    }
     const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo)
-    if (result.type !== 'success' || !result.url) return
+    if (result.type === 'cancel' || result.type === 'dismiss') {
+      return
+    }
+    if (result.type !== 'success' || !result.url) {
+      throw new Error(`OAuth ended with unexpected state: type=${result.type}`)
+    }
     const url = new URL(result.url)
     const params = new URLSearchParams(url.hash.substring(1) || url.search.substring(1))
     const accessToken = params.get('access_token')
     const refreshToken = params.get('refresh_token')
     if (accessToken && refreshToken) {
-      await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+      const { error: setErr } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+      if (setErr) throw new Error(`setSession failed: ${setErr.message}`)
       return
     }
     const code = params.get('code')
     if (code) {
-      await supabase.auth.exchangeCodeForSession(code)
+      const { error: exErr } = await supabase.auth.exchangeCodeForSession(code)
+      if (exErr) throw new Error(`exchangeCodeForSession failed: ${exErr.message}`)
+      return
     }
+    throw new Error('OAuth callback URL missing both tokens and code')
   }, [supabase, configRedirectUri])
 
   const signInWithGoogle = useCallback(async () => {

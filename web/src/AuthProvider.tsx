@@ -99,17 +99,25 @@ export function AuthProvider({
   }, [user, loadProfile])
 
   const signInWithGoogle = useCallback(async () => {
-    await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: resolveRedirectUrl() },
     })
+    if (error) {
+      console.error('[auth-shared] signInWithGoogle error:', error)
+      throw new Error(error.message)
+    }
   }, [supabase, oauthRedirectUrl])
 
   const signInWithApple = useCallback(async () => {
-    await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'apple',
       options: { redirectTo: resolveRedirectUrl() },
     })
+    if (error) {
+      console.error('[auth-shared] signInWithApple error:', error)
+      throw new Error(error.message)
+    }
   }, [supabase, oauthRedirectUrl])
 
   const signInWithEmail = useCallback(async (email: string, password: string) => {
