@@ -8,6 +8,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class AuthManager extends ChangeNotifier {
   final SupabaseClient _supabase;
   final String _redirectUrl;
+  final String? _signupSource;
+  final String? _deleteUserFunctionName;
   User? _user;
   String _displayName = '';
   String _avatarUrl = '';
@@ -22,8 +24,12 @@ class AuthManager extends ChangeNotifier {
   AuthManager({
     required SupabaseClient supabase,
     required String redirectUrl,
+    String? signupSource,
+    String? deleteUserFunctionName,
   })  : _supabase = supabase,
-        _redirectUrl = redirectUrl {
+        _redirectUrl = redirectUrl,
+        _signupSource = signupSource,
+        _deleteUserFunctionName = deleteUserFunctionName {
     _initialize();
   }
 
@@ -131,5 +137,34 @@ class AuthManager extends ChangeNotifier {
     _displayName = '';
     _avatarUrl = '';
     notifyListeners();
+  }
+
+  /// このアプリだけの退会 (opt-out)。
+  /// 成功時: Edge Function 呼び出し後に signOut して null を返す。
+  /// 失敗時: エラーメッセージを返す (signOut しない)。auth.users は触らない。
+  Future<String?> deleteAccount() async {
+    final fnName = _deleteUserFunctionName
+        ?? (_signupSource != null ? 'delete-$_signupSource-user' : null);
+    if (fnName == null) {
+      return 'auth-shared: deleteAccount requires signupSource or deleteUserFunctionName';
+    }
+    final session = _supabase.auth.currentSession;
+    if (session == null) return 'not_authenticated';
+    try {
+      final response = await _supabase.functions.invoke(fnName);
+      if (response.status != null && response.status! >= 400) {
+        final data = response.data;
+        if (data is Map && data['error'] is String) return data['error'] as String;
+        return 'http_${response.status}';
+      }
+      await signOut();
+      return null;
+    } on FunctionException catch (e) {
+      final details = e.details;
+      if (details is Map && details['error'] is String) return details['error'] as String;
+      return 'http_${e.status}';
+    } catch (e) {
+      return e.toString();
+    }
   }
 }

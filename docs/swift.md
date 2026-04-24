@@ -23,3 +23,7 @@ Supabase Dashboard に `com.example.yourapp://login-callback` 形式の URL を�
 ## SwiftUI での配置
 
 `@StateObject var authManager = AuthManager(supabase: ..., config: AuthConfig(callbackURLScheme: "..."))` を `App` 直下または ルート View で保持し、`.environmentObject(authManager)` で下層に配る。
+
+## 退会 (アプリ個別 opt-out) v2.1.0+
+
+`AuthConfig` に `signupSource` か `deleteUserFunctionName` を渡すと `AuthManager.deleteAccount()` が使える。成功時は Edge Function 呼び出し後に自動 `signOut()`。失敗時は `AuthSharedError` またはネットワーク/functions エラーを throw。`auth.users` は削除しない。

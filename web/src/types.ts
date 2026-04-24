@@ -10,6 +10,12 @@ export interface AuthConfig {
   autoCreateProfile?: boolean
   /** signup_source 識別子 (サービス名) */
   signupSource?: string
+  /**
+   * 退会 (アプリ個別 opt-out) 用 Edge Function 名。
+   * 省略時は `delete-${signupSource}-user` を解決して使う (signupSource 未指定時は deleteAccount 不可)。
+   * 例: fmai2 は signupSource='fmai2' だが EF 名は 'delete-fmai-user' のため明示が必要。
+   */
+  deleteUserFunctionName?: string
   /** ログイン成功後に呼ばれるフック (サービス固有のプロフィール作成等) */
   onLogin?: (user: User, supabase: SupabaseClient) => Promise<void>
   /** ログアウト後に呼ばれるフック */
@@ -28,4 +34,10 @@ export interface AuthContextValue {
   resetPassword: (email: string) => Promise<{ error?: string }>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
+  /**
+   * このアプリだけの退会 (opt-out)。
+   * 成功時: 対象アプリの Edge Function を呼び出し → signOut → redirectAfterLogout へ。
+   * 失敗時: `{ error }` を返す (signOut しない)。auth.users は触らない設計。
+   */
+  deleteAccount: () => Promise<{ error?: string }>
 }

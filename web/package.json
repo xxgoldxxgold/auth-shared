@@ -1,6 +1,6 @@
 {
   "name": "@xxgoldxxgold/auth-shared-web",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "共通認証UI (Next.js / React)",
   "main": "src/index.ts",
   "types": "src/index.ts",

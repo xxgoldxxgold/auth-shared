@@ -20,3 +20,15 @@ Server Component / Middleware で `supabase.auth.getUser()` を使って認証�
 ## ログアウト後の遷移
 
 `redirectAfterLogout` で指定した URL にフルリロード (`window.location.href = ...`)。`router.push()` ではなくフルリロードにする理由は、Server Component のキャッシュを確実にクリアするため。
+
+## 退会 (アプリ個別 opt-out) v2.1.0+
+
+`useAuth().deleteAccount()` が利用可能。呼ぶと下記を自動で行う:
+
+1. 対象アプリの Edge Function (名前は `config.deleteUserFunctionName` 優先、無ければ `delete-${signupSource}-user`) を session JWT 付きで invoke
+2. 成功なら signOut → `redirectAfterLogout`
+3. 失敗なら `{ error }` を返す (signOut しない)
+
+Edge Function 側は **Project A** に配置し、受け取った JWT から uid を抽出した上でアプリ固有データのみ削除する。`auth.users` は削除しない (他アプリで継続利用できるよう)。
+
+UX (パスワード再認証・二重送信防止・確認ダイアログ) は consumer 側の責務。

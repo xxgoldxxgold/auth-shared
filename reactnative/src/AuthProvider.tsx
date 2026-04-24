@@ -14,6 +14,7 @@ const AuthContext = createContext<AuthContextValue>({
   resetPassword: async () => ({}),
   signOut: async () => {},
   refreshProfile: async () => {},
+  deleteAccount: async () => ({}),
 })
 
 export function useAuth() {
@@ -176,12 +177,30 @@ export function AuthProvider({
     if (onNavigateAfterLogout) onNavigateAfterLogout()
   }, [supabase, onLogout, onNavigateAfterLogout])
 
+  const deleteAccount = useCallback(async () => {
+    const fnName = config.deleteUserFunctionName
+      ?? (config.signupSource ? `delete-${config.signupSource}-user` : null)
+    if (!fnName) {
+      return { error: 'auth-shared: deleteAccount requires signupSource or deleteUserFunctionName' }
+    }
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return { error: 'not_authenticated' }
+    const { data, error } = await supabase.functions.invoke(fnName, { method: 'POST' })
+    if (error) {
+      const body = (data && typeof data === 'object') ? (data as { error?: string }) : null
+      return { error: body?.error ?? error.message }
+    }
+    await signOut()
+    return {}
+  }, [supabase, config.deleteUserFunctionName, config.signupSource, signOut])
+
   return (
     <AuthContext.Provider value={{
       user, displayName, avatarUrl, loading,
       signInWithGoogle, signInWithApple,
       signInWithEmail, signUpWithEmail,
       resetPassword, signOut, refreshProfile,
+      deleteAccount,
     }}>
       {children}
     </AuthContext.Provider>

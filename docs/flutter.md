@@ -22,6 +22,10 @@ Supabase Dashboard → Auth → URL Configuration → Redirect URLs に、deep-l
 
 `main()` で `Supabase.initialize(url: ..., anonKey: ...)` を完了してから `AuthManager(supabase: Supabase.instance.client, redirectUrl: '...')` を作る。`Provider` / `ChangeNotifierProvider` で DI するのが一般的。
 
+## 退会 (アプリ個別 opt-out) v2.1.0+
+
+`AuthManager` に `signupSource` または `deleteUserFunctionName` を渡すと `deleteAccount()` が使える。戻り値は `String?` (null=成功、非null=エラーメッセージ)。成功時は Edge Function 呼び出し後に自動 `signOut()` する。`auth.users` は削除しない。
+
 ## トラブルシュート
 
 - OAuth 後に deep-link が開くのにセッションが作られない → `supabase_flutter` のバージョンが古い可能性。v2.0 以降を使うこと

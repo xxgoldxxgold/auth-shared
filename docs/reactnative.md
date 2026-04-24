@@ -28,3 +28,13 @@ consumer 側で追加コールバックページを用意する必要はない (
 ## 未使用の RN dep 処理
 
 real-insta のように RN app が `auth-shared-reactnative` を package.json に入れているが未使用のケースでは、依存 URL の更新のみで OK。import を追加しない限り bundle には含まれない。
+
+## 退会 (アプリ個別 opt-out) v2.1.0+
+
+`useAuth().deleteAccount()` を呼ぶと下記を自動で行う:
+
+1. 対象アプリの Edge Function (名前は `config.deleteUserFunctionName` 優先、無ければ `delete-${signupSource}-user`) を session JWT 付きで invoke
+2. 成功なら signOut → `onNavigateAfterLogout`
+3. 失敗なら `{ error }` を返す (signOut しない)
+
+Edge Function 側は Project A に配置し、受け取った JWT から uid を抽出してアプリ固有データのみ削除する。`auth.users` は削除しない。
