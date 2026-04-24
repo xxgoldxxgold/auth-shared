@@ -81,15 +81,20 @@ export function AuthProvider({
       if (u) loadProfile(u)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (cancelled) return
       const u = session?.user || null
       setUser(u)
       setLoading(false)
       if (u) {
-        await loadProfile(u)
-        if (autoCreateProfile) await ensureProfile(u)
-        if (onLogin) await onLogin(u, supabase)
+        // Defer async work: awaiting Supabase queries inside onAuthStateChange
+        // deadlocks the internal auth lock (known supabase-js pitfall).
+        setTimeout(() => {
+          if (cancelled) return
+          loadProfile(u).catch(() => {})
+          if (autoCreateProfile) ensureProfile(u).catch(() => {})
+          if (onLogin) onLogin(u, supabase).catch(() => {})
+        }, 0)
       }
     })
 
