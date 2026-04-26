@@ -108,45 +108,73 @@ export function AuthProvider({
   const signInWithOAuth = useCallback(async (provider: 'google' | 'apple') => {
     const { makeRedirectUri } = await import('expo-auth-session')
     const WebBrowser = await import('expo-web-browser')
+    const Linking = await import('expo-linking')
     const redirectTo = configRedirectUri ?? makeRedirectUri()
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: { redirectTo, skipBrowserRedirect: true },
-    })
-    if (error || !data.url) {
-      throw new Error(error?.message || `OAuth initiation failed for ${provider}`)
-    }
-    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo)
 
-    // Android (Apple web flow など) で deep link 経由の戻りが 'dismiss' になり
-    // result.url が undefined なケースがある。まず session が既に確立してないか確認。
-    const hasUrl = result.type === 'success' && !!result.url
-    if (!hasUrl) {
+    // Android では Apple web flow が Custom Tabs から URL を取りこぼし、
+    // OS の Linking 経由でのみ deep link が届くケースがある。両方を race。
+    let linkingResolve: ((url: string | null) => void) | null = null
+    const linkingPromise = new Promise<string | null>((resolve) => {
+      linkingResolve = resolve
+    })
+    const linkingSub = Linking.addEventListener('url', ({ url }) => {
+      if (linkingResolve) linkingResolve(url)
+    })
+    // 60秒経っても来なければ諦める
+    const linkingTimeout = setTimeout(() => {
+      if (linkingResolve) linkingResolve(null)
+    }, 60000)
+    const cleanup = () => {
+      linkingSub.remove()
+      clearTimeout(linkingTimeout)
+    }
+
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo, skipBrowserRedirect: true },
+      })
+      if (error || !data.url) {
+        throw new Error(error?.message || `OAuth initiation failed for ${provider}`)
+      }
+
+      const browserPromise = WebBrowser.openAuthSessionAsync(data.url, redirectTo).then(r => {
+        if (r.type === 'success' && r.url) return r.url
+        return null
+      })
+
+      // どちらか先に URL を返した方を採用
+      const callbackUrl = await Promise.race([linkingPromise, browserPromise])
+
+      if (!callbackUrl) {
+        // どちらも URL を返さなかった: session が確立済みか確認
+        const { data: sess } = await supabase.auth.getSession()
+        if (sess.session) return
+        return // ユーザーがキャンセル扱い (silent)
+      }
+
+      const url = new URL(callbackUrl)
+      const params = new URLSearchParams(url.hash.substring(1) || url.search.substring(1))
+      const accessToken = params.get('access_token')
+      const refreshToken = params.get('refresh_token')
+      if (accessToken && refreshToken) {
+        const { error: setErr } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+        if (setErr) throw new Error(`setSession failed: ${setErr.message}`)
+        return
+      }
+      const code = params.get('code')
+      if (code) {
+        const { error: exErr } = await supabase.auth.exchangeCodeForSession(code)
+        if (exErr) throw new Error(`exchangeCodeForSession failed: ${exErr.message}`)
+        return
+      }
+      // URL は来たが token も code も無い → session が確立してる可能性 (Supabase 自動処理)
       const { data: sess } = await supabase.auth.getSession()
       if (sess.session) return
-      if (result.type === 'cancel' || result.type === 'dismiss') return
-      throw new Error(`OAuth ended with unexpected state: type=${result.type}`)
+      throw new Error('OAuth callback URL missing both tokens and code')
+    } finally {
+      cleanup()
     }
-
-    const url = new URL(result.url!)
-    const params = new URLSearchParams(url.hash.substring(1) || url.search.substring(1))
-    const accessToken = params.get('access_token')
-    const refreshToken = params.get('refresh_token')
-    if (accessToken && refreshToken) {
-      const { error: setErr } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
-      if (setErr) throw new Error(`setSession failed: ${setErr.message}`)
-      return
-    }
-    const code = params.get('code')
-    if (code) {
-      const { error: exErr } = await supabase.auth.exchangeCodeForSession(code)
-      if (exErr) throw new Error(`exchangeCodeForSession failed: ${exErr.message}`)
-      return
-    }
-    // URL は来たが token も code も無い → session が確立してる可能性 (Supabase 自動処理)
-    const { data: sess } = await supabase.auth.getSession()
-    if (sess.session) return
-    throw new Error('OAuth callback URL missing both tokens and code')
   }, [supabase, configRedirectUri])
 
   const signInWithGoogle = useCallback(async () => {
