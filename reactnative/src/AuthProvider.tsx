@@ -171,7 +171,9 @@ export function AuthProvider({
       // URL は来たが token も code も無い → session が確立してる可能性 (Supabase 自動処理)
       const { data: sess } = await supabase.auth.getSession()
       if (sess.session) return
-      throw new Error('OAuth callback URL missing both tokens and code')
+      const errParam = params.get('error') || params.get('error_description')
+      const visibleUrl = callbackUrl.length > 200 ? callbackUrl.slice(0, 200) + '...' : callbackUrl
+      throw new Error(`OAuth callback URL missing both tokens and code | err=${errParam || 'none'} | url=${visibleUrl}`)
     } finally {
       cleanup()
     }
