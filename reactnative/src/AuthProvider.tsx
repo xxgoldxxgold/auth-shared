@@ -138,8 +138,13 @@ export function AuthProvider({
         throw new Error(error?.message || `OAuth initiation failed for ${provider}`)
       }
 
+      let browserType: string = 'pending'
       const browserPromise = WebBrowser.openAuthSessionAsync(data.url, redirectTo).then(r => {
+        browserType = r.type
         if (r.type === 'success' && r.url) return r.url
+        return null
+      }).catch(e => {
+        browserType = `error:${e?.message || String(e)}`
         return null
       })
 
@@ -150,7 +155,7 @@ export function AuthProvider({
         // どちらも URL を返さなかった: session が確立済みか確認
         const { data: sess } = await supabase.auth.getSession()
         if (sess.session) return
-        return // ユーザーがキャンセル扱い (silent)
+        throw new Error(`OAuth: no callback URL | browser=${browserType} | redirectTo=${redirectTo}`)
       }
 
       const url = new URL(callbackUrl)
