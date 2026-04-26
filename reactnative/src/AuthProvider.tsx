@@ -117,13 +117,18 @@ export function AuthProvider({
       throw new Error(error?.message || `OAuth initiation failed for ${provider}`)
     }
     const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo)
-    if (result.type === 'cancel' || result.type === 'dismiss') {
-      return
-    }
-    if (result.type !== 'success' || !result.url) {
+
+    // Android (Apple web flow など) で deep link 経由の戻りが 'dismiss' になり
+    // result.url が undefined なケースがある。まず session が既に確立してないか確認。
+    const hasUrl = result.type === 'success' && !!result.url
+    if (!hasUrl) {
+      const { data: sess } = await supabase.auth.getSession()
+      if (sess.session) return
+      if (result.type === 'cancel' || result.type === 'dismiss') return
       throw new Error(`OAuth ended with unexpected state: type=${result.type}`)
     }
-    const url = new URL(result.url)
+
+    const url = new URL(result.url!)
     const params = new URLSearchParams(url.hash.substring(1) || url.search.substring(1))
     const accessToken = params.get('access_token')
     const refreshToken = params.get('refresh_token')
@@ -138,6 +143,9 @@ export function AuthProvider({
       if (exErr) throw new Error(`exchangeCodeForSession failed: ${exErr.message}`)
       return
     }
+    // URL は来たが token も code も無い → session が確立してる可能性 (Supabase 自動処理)
+    const { data: sess } = await supabase.auth.getSession()
+    if (sess.session) return
     throw new Error('OAuth callback URL missing both tokens and code')
   }, [supabase, configRedirectUri])
 
