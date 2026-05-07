@@ -121,23 +121,96 @@ export function AuthProvider({
     }
   }, [supabase, oauthRedirectUrl])
 
+  // supabase-js の signInWithPassword は内部 lock / refresh hang で永久 spinner になる
+  // 事故が起きるので、 GoTrue REST API を直接叩く実装に切り替え。
+  // success 時は localStorage に session を直接書き、 supabase-js にも timeout 付きで通知する
+  // 二段構え。 失敗時は sb-* キャッシュを掃除して clean state に戻す。
   const signInWithEmail = useCallback(async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) return { error: error.message }
-    return {}
+    const url = (supabase as unknown as { supabaseUrl: string }).supabaseUrl
+    const key = (supabase as unknown as { supabaseKey: string }).supabaseKey
+    if (!url || !key) {
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      return error ? { error: error.message } : {}
+    }
+
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 15_000)
+    const projectRef = url.replace(/^https?:\/\//, '').split('.')[0] || ''
+    try {
+      const res = await fetch(`${url}/auth/v1/token?grant_type=password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': key },
+        body: JSON.stringify({ email, password }),
+        signal: ctrl.signal,
+      })
+      clearTimeout(timer)
+      const body: { msg?: string; error?: string; error_description?: string; access_token?: string; refresh_token?: string; expires_in?: number; expires_at?: number; token_type?: string; user?: unknown } = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        return { error: body.msg || body.error_description || body.error || 'Invalid login credentials' }
+      }
+
+      const session = {
+        access_token: body.access_token,
+        refresh_token: body.refresh_token,
+        expires_in: body.expires_in,
+        expires_at: body.expires_at || (Math.floor(Date.now() / 1000) + (body.expires_in || 3600)),
+        token_type: body.token_type || 'bearer',
+        user: body.user,
+      }
+
+      if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined' && projectRef) {
+        try {
+          window.localStorage.setItem(`sb-${projectRef}-auth-token`, JSON.stringify(session))
+        } catch {}
+      }
+
+      // supabase-js にも通知 (= onAuthStateChange を発火させる)。 詰まっても 5 秒で諦める。
+      try {
+        await Promise.race([
+          supabase.auth.setSession({
+            access_token: body.access_token!,
+            refresh_token: body.refresh_token!,
+          }),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('setSession timeout')), 5_000)),
+        ])
+      } catch {}
+
+      return {}
+    } catch (e: unknown) {
+      clearTimeout(timer)
+      if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined' && projectRef) {
+        try {
+          const ks = Object.keys(window.localStorage).filter(k => k.startsWith(`sb-${projectRef}`))
+          ks.forEach(k => { try { window.localStorage.removeItem(k) } catch {} })
+        } catch {}
+      }
+      const isAborted = (e instanceof DOMException && e.name === 'AbortError')
+        || (e instanceof Error && /aborted/i.test(e.message))
+      return { error: isAborted ? 'メールログインがタイムアウトしました (15 秒)。 ネットワーク / 認証サーバに到達できていません。' : (e instanceof Error ? e.message : 'メールログイン失敗') }
+    }
   }, [supabase])
 
   const signUpWithEmail = useCallback(async (email: string, password: string, name?: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { display_name: name || '', ...(config.signupSource ? { signup_source: config.signupSource } : {}) },
-        emailRedirectTo: resolveRedirectUrl(),
-      },
-    })
-    if (error) return { error: error.message }
-    return {}
+    // supabase.auth.signUp も詰まる懸念があるので 15 秒 timeout を被せる。
+    try {
+      const { error } = await Promise.race([
+        supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { display_name: name || '', ...(config.signupSource ? { signup_source: config.signupSource } : {}) },
+            emailRedirectTo: resolveRedirectUrl(),
+          },
+        }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('aborted: signUp timeout')), 15_000)),
+      ])
+      if (error) return { error: error.message }
+      return {}
+    } catch (e: unknown) {
+      const isAborted = e instanceof Error && /aborted/i.test(e.message)
+      return { error: isAborted ? 'メール登録がタイムアウトしました (15 秒)。' : (e instanceof Error ? e.message : 'メール登録失敗') }
+    }
   }, [supabase, config.signupSource, oauthRedirectUrl])
 
   const resetPassword = useCallback(async (email: string) => {
