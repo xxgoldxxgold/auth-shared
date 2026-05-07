@@ -2,6 +2,14 @@ import type { SupabaseClient, User } from '@supabase/supabase-js'
 
 export interface AuthConfig {
   supabase: SupabaseClient
+  /**
+   * Supabase project の URL (= NEXT_PUBLIC_SUPABASE_URL)。
+   * 省略時は supabase クライアントの内部フィールドから取得を試みるが、 minify / protected
+   * アクセス問題で undefined になることがあるので、 メールログインを使うアプリは明示すべし。
+   */
+  supabaseUrl?: string
+  /** Supabase project の anon key (= NEXT_PUBLIC_SUPABASE_ANON_KEY)。 同上。 */
+  supabaseAnonKey?: string
   /** ログアウト後のリダイレクト先 URL (デフォルト: '/') */
   redirectAfterLogout?: string
   /** OAuth / メール確認 / パスワードリセットの戻り先 URL (デフォルト: `${window.location.origin}/auth/callback`) */

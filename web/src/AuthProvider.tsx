@@ -30,7 +30,7 @@ export function AuthProvider({
   children: ReactNode
   config: AuthConfig
 }) {
-  const { supabase, redirectAfterLogout = '/', oauthRedirectUrl, autoCreateProfile = false, onLogin, onLogout } = config
+  const { supabase, supabaseUrl: cfgUrl, supabaseAnonKey: cfgKey, redirectAfterLogout = '/', oauthRedirectUrl, autoCreateProfile = false, onLogin, onLogout } = config
   const resolveRedirectUrl = () => oauthRedirectUrl ?? window.location.origin + '/auth/callback'
   const [user, setUser] = useState<User | null>(null)
   const [displayName, setDisplayName] = useState('')
@@ -126,11 +126,14 @@ export function AuthProvider({
   // success 時は localStorage に session を直接書き、 supabase-js にも timeout 付きで通知する
   // 二段構え。 失敗時は sb-* キャッシュを掃除して clean state に戻す。
   const signInWithEmail = useCallback(async (email: string, password: string) => {
-    const url = (supabase as unknown as { supabaseUrl: string }).supabaseUrl
-    const key = (supabase as unknown as { supabaseKey: string }).supabaseKey
+    // 優先順位: AuthConfig で明示された値 > supabase クライアント内部フィールド。
+    // 内部フィールドは minify / protected アクセスで undefined になる事故が
+    // 起きたので config 経由を強く推奨。 取れなかったら明示エラー (= hang する
+    // supabase.auth.signInWithPassword への fallback はしない)。
+    const url = cfgUrl ?? (supabase as unknown as { supabaseUrl?: string }).supabaseUrl
+    const key = cfgKey ?? (supabase as unknown as { supabaseKey?: string }).supabaseKey
     if (!url || !key) {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
-      return error ? { error: error.message } : {}
+      return { error: 'auth-shared: AuthConfig.supabaseUrl / supabaseAnonKey が未設定です' }
     }
 
     const ctrl = new AbortController()
@@ -189,7 +192,7 @@ export function AuthProvider({
         || (e instanceof Error && /aborted/i.test(e.message))
       return { error: isAborted ? 'メールログインがタイムアウトしました (15 秒)。 ネットワーク / 認証サーバに到達できていません。' : (e instanceof Error ? e.message : 'メールログイン失敗') }
     }
-  }, [supabase])
+  }, [supabase, cfgUrl, cfgKey])
 
   const signUpWithEmail = useCallback(async (email: string, password: string, name?: string) => {
     // supabase.auth.signUp も詰まる懸念があるので 15 秒 timeout を被せる。
